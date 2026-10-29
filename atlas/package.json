@@ -1,0 +1,32 @@
+{
+  "name": "dsbm-atlas",
+  "version": "1.1.0",
+  "private": true,
+  "description": "DSBM Atlas: an interactive, bilingual (EN/FA) atlas of Depressive Suicidal Black Metal. Consumes data/atlas.json only; never crawls.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "npx serve out",
+    "typecheck": "tsc --noEmit",
+    "export:data": "python3 tools/export_atlas_data.py ../dsbm_project"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-globe.gl": "^2.27.2",
+    "server-only": "^0.0.1",
+    "three": "^0.170.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.14",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.170.0",
+    "@types/topojson-client": "^3.1.5",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,10 @@
+export const locales = ["en", "fa"] as const;
+export type Locale = (typeof locales)[number];
+export const defaultLocale: Locale = "en";
+export const isLocale = (x: string): x is Locale => (locales as readonly string[]).includes(x);
+export const dirOf = (l: Locale) => (l === "fa" ? "rtl" : "ltr");
+export const other = (l: Locale): Locale => (l === "fa" ? "en" : "fa");
+export const nf = (l: Locale, v: number, o?: Intl.NumberFormatOptions) => new Intl.NumberFormat(l === "fa" ? "fa-IR" : "en", o).format(v);
+export const year = (l: Locale, v: number) => nf(l, v, { useGrouping: false });
+export const pctSign = (l: Locale) => (l === "fa" ? "٪" : "%");
+export const fill = (s: string, o: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(o[k] ?? ""));
