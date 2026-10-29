@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+- Globe: memoised accessors (no polygon rebuild on every state change), 3D code loaded only when the atlas is near the viewport, drawing paused off-screen / in background tabs, capped pixel ratio, no transition, lower cap resolution; renders only once the box has a real size.
+- Globe errors are no longer swallowed: the tile map is shown with a visible reason (console + "info"), a retry button, and a "taking a while" hint after 7 s.
+- Tile map: cropped to the used area (bigger tiles), region filter (Europe, North America, …), hover card, bigger labels, and a wrapping sorted list on phones instead of sideways scrolling.
+
 ## 1.1.0
 Redesign and usability pass.
 - New header: scroll-spy, reading-progress bar, mobile menu, SVG theme icons, skip link; search palette (Ctrl+K or "/") over bands, countries, themes and sections, plus "random band".

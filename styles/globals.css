@@ -200,12 +200,15 @@ table.t td.n { font-family: var(--mono); text-align: end; }
 .globe-ov { position: absolute; inset-inline-start: 10px; inset-block-end: 10px; display: flex; gap: 6px; flex-wrap: wrap; z-index: 2; }
 .globe-tip { font: 13px/1.4 var(--body); background: var(--surface2); color: var(--fg); border: 1px solid var(--line2); border-radius: 8px; padding: 6px 10px; box-shadow: var(--shadow); }
 .mapwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
-.mapwrap svg { min-width: 780px; }
+.mapwrap svg { width: 100%; height: auto; display: block; }
 .tile { cursor: pointer; }
 .tile rect { stroke: var(--bg); stroke-width: 2; transition: stroke .15s; }
 .tile:hover rect, .tile:focus-visible rect, .tile.sel rect { stroke: var(--fg); }
-.tile text { font: 500 11px var(--mono); text-anchor: middle; pointer-events: none; }
-.tile text.v { font: 400 10px var(--mono); opacity: .85; }
+.tile text { font: 600 16px var(--mono); text-anchor: middle; pointer-events: none; }
+.tile text.v { font: 400 12.5px var(--mono); opacity: .9; }
+.tile { transition: opacity .2s; }
+.tile.dim { opacity: .22; }
+.tile:hover rect, .tile.sel rect { stroke-width: 3; }
 .atlas-side { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; min-width: 0; }
 .panel h3 { font-size: 18px; }
@@ -337,3 +340,21 @@ footer .fine { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-t
 /* grid children may shrink below their content (a fixed-size canvas must not widen the panel) */
 .atlas-main > *, .atlas-grid > * { min-width: 0; }
 .globe-box canvas { max-width: 100%; }
+
+.globe-wait { position: absolute; inset-inline: 0; inset-block-start: 50%; transform: translateY(-50%); text-align: center; color: var(--muted); font-size: 14px; pointer-events: none; display: grid; gap: 10px; justify-items: center; padding: 0 20px; }
+.globe-wait .btn { pointer-events: auto; }
+.notice { border: 1px solid var(--line2); border-inline-start: 3px solid var(--warn); background: var(--surface2); border-radius: 10px; padding: 10px 14px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.notice code { font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+
+.tilemap { display: grid; gap: 10px; min-width: 0; }
+.tilemap .seg { margin: 0; }
+.tile-hover { min-height: 30px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: 14px; color: var(--muted); }
+.tile-hover b { color: var(--fg); font-size: 16px; }
+.mapwrap { overflow: hidden; padding: 6px; }
+.tile-list { display: none; list-style: none; margin: 0; padding: 0; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.tile-list a { display: grid; gap: 1px; padding: 7px 9px; border-radius: 8px; text-decoration: none; font-size: 12px; line-height: 1.25; border: 2px solid transparent; min-height: 58px; }
+.tile-list a.sel { border-color: var(--fg); }
+.tile-list b { font: 600 13px var(--mono); }
+.tile-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-list em { font: normal 12px var(--mono); opacity: .9; }
+@media (max-width: 700px) { .tile-svg { display: none; } .tile-list { display: grid; } .tile-hover { display: none; } }

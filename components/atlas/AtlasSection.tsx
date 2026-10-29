@@ -1,7 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Country } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
 import { fill, nf } from "@/lib/i18n";
@@ -30,6 +30,8 @@ export default function AtlasSection({ countries, unplaced, locale }: { countrie
   const [rotate, setRotate] = useState(true);
   const [fly, setFly] = useState<FlyTarget | null>(null);
   const [k, setK] = useState(0);
+  const [near, setNear] = useState(false), [ready, setReady] = useState(false), [slow, setSlow] = useState(false);
+  const anchor = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const ok = hasWebGL(); setWebgl(ok);
@@ -37,16 +39,27 @@ export default function AtlasSection({ countries, unplaced, locale }: { countrie
     if (ok && matchMedia("(min-width: 760px)").matches) setView("globe");
   }, []);
 
+  // PERFORMANCE: the 3D code (~1 MB) is only fetched when the atlas is about to scroll into view, so it never delays the first paint
+  useEffect(() => {
+    const el = anchor.current; if (!el) return;
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setNear(true); io.disconnect(); } }, { rootMargin: "600px" });
+    io.observe(el); return () => io.disconnect();
+  }, []);
+  useEffect(() => { if (!near || ready || view !== "globe") return; const t = setTimeout(() => setSlow(true), 7000); return () => clearTimeout(t); }, [near, ready, view]);
+
   const L = LAYERS[layer];
   const rank = useMemo(() => [...countries].filter((c) => L.get(c) != null).sort((a, b) => (L.get(b) as number) - (L.get(a) as number)).slice(0, 10), [countries, L]);
   const top = rank.length ? (L.get(rank[0]) as number) : 1;
   const cur = countries.find((c) => c.name === sel) ?? null;
   const pick = (c: Country) => setSel(c.name);
   const globe = view === "globe" && webgl;
+  const T = locale === "fa"
+    ? { fail: "نمای سه‌بعدی اجرا نشد؛ نقشه‌ی کاشی‌ای نمایش داده می‌شود.", retry: "تلاش دوباره", loading: "در حال بارگذاری کره‌ی زمین…", slow: "بارگذاری طول کشیده است. می‌توانید از نمای کاشی استفاده کنید.", tiles: "نمای کاشی" }
+    : { fail: "The 3D view could not start; showing the tile map instead.", retry: "Try again", loading: "Loading the globe…", slow: "This is taking a while. You can use the tile view meanwhile.", tiles: "Tile view" };
   const tiles = <TileMap countries={countries} layer={layer} locale={locale} selected={sel} onSelect={pick} />;
 
   return (
-    <div className="atlas-grid">
+    <div className="atlas-grid" ref={anchor}>
       <div className="atlas-main">
         <div className="atlas-bar">
           <div className="seg" role="group" aria-label={m.atlas.cap}>{(["bands", "rate", "temp"] as LayerKey[]).map((key, i) => <button key={key} className="chip" aria-pressed={layer === key} onClick={() => setLayer(key)}>{m.atlas.layers[i]}</button>)}</div>
@@ -54,9 +67,10 @@ export default function AtlasSection({ countries, unplaced, locale }: { countrie
         </div>
         {globe ? (
           <div style={{ position: "relative" }}>
-            <ErrorBoundary fallback={tiles} onError={() => setView("tiles")}>
-              <GlobeView countries={countries} layer={layer} locale={locale} selected={sel} onSelect={pick} rotate={rotate} fly={fly} />
+            <ErrorBoundary fallback={(msg, retry) => (<><div className="notice" role="alert">{T.fail} <button className="btn" onClick={retry}>{T.retry}</button><details><summary>info</summary><code>{msg}</code></details></div>{tiles}</>)}>
+              {near ? <GlobeView countries={countries} layer={layer} locale={locale} selected={sel} onSelect={pick} rotate={rotate} fly={fly} onReady={() => setReady(true)} /> : <div className="globe-box" aria-busy="true" />}
             </ErrorBoundary>
+            {!ready ? <div className="globe-wait" role="status">{slow ? <>{T.slow} <button className="btn" onClick={() => setView("tiles")}>{T.tiles}</button></> : T.loading}</div> : null}
             <div className="globe-ov">
               <button className="btn" onClick={() => setRotate((r) => !r)} aria-pressed={rotate}>{rotate ? <IconPause /> : <IconPlay />}{rotate ? U.pause : U.play}</button>
             </div>

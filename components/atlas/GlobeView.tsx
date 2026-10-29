@@ -6,7 +6,7 @@
  * - Places missing from the 110m outline (Gibraltar, Hong Kong, Singapore, Puerto Rico) are drawn as pins.
  * This file is loaded only in the browser (next/dynamic, ssr:false) because WebGL needs `window`.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Globe from "react-globe.gl";
 import { feature } from "topojson-client";
 import worldData from "world-atlas/countries-110m.json";
@@ -32,18 +32,20 @@ const centroid = (f: any): { lat: number; lng: number } => {
   return { lat: lat / pts.length, lng: (Math.atan2(sy, sx) * 180) / Math.PI };
 };
 
-export default function GlobeView({ countries, layer, locale, selected, onSelect, rotate, fly }: { countries: Country[]; layer: LayerKey; locale: Locale; selected: string | null; onSelect: (c: Country) => void; rotate: boolean; fly: FlyTarget | null }) {
+export default function GlobeView({ countries, layer, locale, selected, onSelect, rotate, fly, onReady: ready }: { countries: Country[]; layer: LayerKey; locale: Locale; selected: string | null; onSelect: (c: Country) => void; rotate: boolean; fly: FlyTarget | null; onReady?: () => void }) {
   const m = getMessages(locale);
   const ref = useRef<any>(null);
   const box = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 800, h: 520 });
+  const [size, setSize] = useState({ w: 0, h: 0 });
   const [pal, setPal] = useState<Palette | null>(null);
   const L = LAYERS[layer];
+  const spin = rotate && !reduced();
+  const spinRef = useRef(spin); spinRef.current = spin;
 
   const byNum = useMemo(() => new Map(countries.map((c) => [c.num, c])), [countries]);
   const micro = useMemo(() => countries.filter((c) => c.micro).map((c) => ({ lat: c.micro![0], lng: c.micro![1], c })), [countries]);
-  const maxN = useMemo(() => Math.max(...countries.map((c) => c.n)), [countries]);
-  const maxRate = useMemo(() => Math.max(...countries.map((c) => c.rate ?? 0)), [countries]);
+  const maxN = useMemo(() => Math.max(1, ...countries.map((c) => c.n)), [countries]);
+  const maxRate = useMemo(() => Math.max(0.01, ...countries.map((c) => c.rate ?? 0)), [countries]);
 
   // palette follows the theme (data-theme attribute or OS setting)
   useEffect(() => {
@@ -54,54 +56,87 @@ export default function GlobeView({ countries, layer, locale, selected, onSelect
     return () => { mo.disconnect(); mq.removeEventListener("change", upd); };
   }, []);
 
-  // responsive canvas
+  // responsive canvas; render only once the box has a real size (a 0x0 WebGL canvas is a classic "blank globe")
   useEffect(() => {
-    if (!box.current) return;
-    const ro = new ResizeObserver(([e]) => setSize({ w: Math.floor(e.contentRect.width), h: Math.floor(e.contentRect.height) }));
-    ro.observe(box.current);
+    const el = box.current; if (!el) return;
+    const take = () => setSize((o) => { const w = Math.floor(el.clientWidth), h = Math.floor(el.clientHeight); return o.w === w && o.h === h ? o : { w, h }; });
+    take();
+    const ro = new ResizeObserver(take); ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  const valueOf = (c?: Country) => (c ? LAYERS[layer].get(c) : null);
-  const colorOf = (c?: Country) => {
-    if (!pal) return "#444";
+  // PERFORMANCE: stop drawing while the globe is off-screen or the tab is hidden
+  useEffect(() => {
+    const el = box.current; if (!el) return;
+    let vis = true, tab = !document.hidden;
+    const apply = () => { const g = ref.current; if (!g) return; try { vis && tab ? g.resumeAnimation() : g.pauseAnimation(); } catch { /* not ready */ } };
+    const io = new IntersectionObserver(([e]) => { vis = e.isIntersecting; apply(); }, { rootMargin: "100px" });
+    io.observe(el);
+    const vc = () => { tab = !document.hidden; apply(); };
+    document.addEventListener("visibilitychange", vc);
+    return () => { io.disconnect(); document.removeEventListener("visibilitychange", vc); };
+  }, []);
+
+  // PERFORMANCE: accessors are memoised. New function identities make react-globe.gl rebuild every polygon, so they must only change
+  // when the data really changes (layer, theme, selection) and never on resize / hover / rotate toggles.
+  const valueOf = useCallback((c?: Country) => (c ? LAYERS[layer].get(c) : null), [layer]);
+  const colorOf = useCallback((c?: Country) => {
+    if (!pal) return "#444444";
     const v = valueOf(c);
     return v == null ? pal.surface2 : hexColor(L, binOf(L, v), pal);
-  };
-  const altOf = (c?: Country) => {
+  }, [pal, valueOf, L]);
+  const altOf = useCallback((c?: Country) => {
     const v = valueOf(c);
-    if (c && c.name === selected) return 0.05 + (v == null ? 0 : 0.16 * (layer === "bands" ? Math.sqrt(v / maxN) : layer === "rate" ? Math.log10(1 + v * 10) / Math.log10(1 + maxRate * 10) : 0));
-    if (v == null) return 0.004;
-    if (layer === "bands") return 0.006 + 0.16 * Math.sqrt(v / maxN);
-    if (layer === "rate") return 0.006 + 0.16 * (Math.log10(1 + v * 10) / Math.log10(1 + maxRate * 10));
-    return 0.012; // temperature: colour only
-  };
-  const label = (c: Country | undefined, fallback: string) => {
-    if (!c) return `<div class="globe-tip"><b>${esc(fallback)}</b><br/>${esc(m.atlas.noBands)}</div>`;
-    const bits = [`${nf(locale, c.n)} ${m.atlas.bands}`];
-    if (c.rate != null) bits.push(`${nf(locale, c.rate, { maximumFractionDigits: 2 })} ${m.atlas.perMillion}`);
-    if (c.temp != null) bits.push(`${nf(locale, c.temp, { maximumFractionDigits: 1 })}°C`);
-    return `<div class="globe-tip"><b>${esc(countryName(locale, c))}</b><br/>${esc(bits.join(" · "))}</div>`;
-  };
-  const go = (c?: Country) => { if (c) onSelect(c); };
-  const spin = rotate && !reduced();
-  // keep rotation in sync with the toggle, and fly to a country / region on request
+    const base = v == null ? 0.004
+      : layer === "bands" ? 0.006 + 0.16 * Math.sqrt(v / maxN)
+      : layer === "rate" ? 0.006 + 0.16 * (Math.log10(1 + v * 10) / Math.log10(1 + maxRate * 10))
+      : 0.012; // temperature: colour only
+    return c && c.name === selected ? base + 0.04 : base;
+  }, [valueOf, layer, maxN, maxRate, selected]);
+  const tips = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const c of countries) {
+      const bits = [`${nf(locale, c.n)} ${m.atlas.bands}`];
+      if (c.rate != null) bits.push(`${nf(locale, c.rate, { maximumFractionDigits: 2 })} ${m.atlas.perMillion}`);
+      if (c.temp != null) bits.push(`${nf(locale, c.temp, { maximumFractionDigits: 1 })}°C`);
+      out.set(c.name, `<div class="globe-tip"><b>${esc(countryName(locale, c))}</b><br/>${esc(bits.join(" · "))}</div>`);
+    }
+    return out;
+  }, [countries, locale, m]);
+  const noBands = (name: string) => `<div class="globe-tip"><b>${esc(name)}</b><br/>${esc(m.atlas.noBands)}</div>`;
+
+  const capColor = useCallback((f: any) => colorOf(byNum.get(idOf(f))), [colorOf, byNum]);
+  const sideColor = useCallback(() => pal?.line ?? "#27323a", [pal]);
+  const strokeColor = useCallback((f: any) => (byNum.get(idOf(f))?.name === selected ? pal?.fg : pal?.bg) ?? "#000000", [byNum, selected, pal]);
+  const altitude = useCallback((f: any) => altOf(byNum.get(idOf(f))), [altOf, byNum]);
+  const polyLabel = useCallback((f: any) => { const c = byNum.get(idOf(f)); return c ? tips.get(c.name) ?? "" : noBands(String(f.properties?.name ?? "")); }, [byNum, tips]); // eslint-disable-line react-hooks/exhaustive-deps
+  const polyClick = useCallback((f: any) => { const c = byNum.get(idOf(f)); if (c) onSelect(c); }, [byNum, onSelect]);
+  const polyHover = useCallback((f: any) => { const c = ref.current?.controls?.(); if (c) c.autoRotate = !f && spinRef.current; }, []);
+  const ptColor = useCallback((p: any) => colorOf(p.c), [colorOf]);
+  const ptAlt = useCallback((p: any) => altOf(p.c) + 0.02, [altOf]);
+  const ptLabel = useCallback((p: any) => tips.get(p.c.name) ?? "", [tips]);
+  const ptClick = useCallback((p: any) => onSelect(p.c), [onSelect]);
+
+  // rotation toggle, fly-to (regions) and fly-to-selected country
   useEffect(() => { const c = ref.current?.controls?.(); if (c) c.autoRotate = spin; }, [spin]);
-  useEffect(() => { if (fly && ref.current) { ref.current.pointOfView({ lat: fly.lat, lng: fly.lng, altitude: fly.alt ?? 1.5 }, 900); } }, [fly]);
+  useEffect(() => { if (fly && ref.current) ref.current.pointOfView({ lat: fly.lat, lng: fly.lng, altitude: fly.alt ?? 1.5 }, 900); }, [fly]);
   useEffect(() => {
-    if (!selected) return;
+    if (!selected || !ref.current) return;
     const c = countries.find((x) => x.name === selected); if (!c) return;
-    if (c.micro) { ref.current?.pointOfView({ lat: c.micro[0], lng: c.micro[1], altitude: 1.3 }, 900); return; }
-    const f = features.find((x) => idOf(x) === c.num); if (f) { const p = centroid(f); ref.current?.pointOfView({ lat: p.lat, lng: p.lng, altitude: 1.4 }, 900); }
+    if (c.micro) { ref.current.pointOfView({ lat: c.micro[0], lng: c.micro[1], altitude: 1.3 }, 900); return; }
+    const f = features.find((x) => idOf(x) === c.num); if (f) { const p = centroid(f); ref.current.pointOfView({ lat: p.lat, lng: p.lng, altitude: 1.4 }, 900); }
   }, [selected, countries]);
 
-  const onReady = () => {
+  const onReady = useCallback(() => {
     const g = ref.current; if (!g) return;
-    g.pointOfView({ lat: 48, lng: 14, altitude: 2.1 }, 0);   // Europe: the genre's centre of gravity
-    const ctl = g.controls();
-    ctl.autoRotate = spin; ctl.autoRotateSpeed = 0.35;
-    ctl.enableDamping = true; ctl.minDistance = 130; ctl.maxDistance = 420;
-  };
+    try {
+      g.pointOfView({ lat: 48, lng: 14, altitude: 2.1 }, 0);   // Europe: the genre's centre of gravity
+      const ctl = g.controls();
+      ctl.autoRotate = spinRef.current; ctl.autoRotateSpeed = 0.35; ctl.enableDamping = true; ctl.minDistance = 130; ctl.maxDistance = 420;
+      g.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));   // 4K / retina screens would draw 4x the pixels for no visible gain
+    } catch (e) { console.warn("[DSBM Atlas] globe setup", e); }
+    ready?.();
+  }, [ready]);
   // tint the sphere itself (no image texture is downloaded)
   useEffect(() => {
     const g = ref.current; if (!g || !pal) return;
@@ -110,22 +145,17 @@ export default function GlobeView({ countries, layer, locale, selected, onSelect
 
   return (
     <div className="globe-box" ref={box} role="img" aria-label={m.atlas.title}>
-      {pal ? (
+      {pal && size.w > 0 && size.h > 0 ? (
         <Globe
           ref={ref} width={size.w} height={size.h} backgroundColor="rgba(0,0,0,0)" onGlobeReady={onReady}
+          rendererConfig={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
           showAtmosphere atmosphereColor={pal.accent} atmosphereAltitude={0.16}
           polygonsData={features}
-          polygonCapColor={(f: any) => colorOf(byNum.get(idOf(f)))}
-          polygonSideColor={() => pal.line}
-          polygonStrokeColor={(f: any) => (byNum.get(idOf(f))?.name === selected ? pal.fg : pal.bg)}
-          polygonAltitude={(f: any) => altOf(byNum.get(idOf(f)))}
-          polygonsTransitionDuration={350}
-          polygonLabel={(f: any) => label(byNum.get(idOf(f)), String(f.properties?.name ?? ""))}
-          onPolygonClick={(f: any) => go(byNum.get(idOf(f)))}
-          onPolygonHover={(f: any) => { const c = ref.current?.controls(); if (c) c.autoRotate = !f && spin; }}
-          pointsData={micro} pointLat="lat" pointLng="lng"
-          pointColor={(p: any) => colorOf(p.c)} pointAltitude={(p: any) => altOf(p.c) + 0.02} pointRadius={0.55}
-          pointLabel={(p: any) => label(p.c, p.c.name)} onPointClick={(p: any) => go(p.c)}
+          polygonCapColor={capColor} polygonSideColor={sideColor} polygonStrokeColor={strokeColor} polygonAltitude={altitude}
+          polygonCapCurvatureResolution={8} polygonsTransitionDuration={0}
+          polygonLabel={polyLabel} onPolygonClick={polyClick} onPolygonHover={polyHover}
+          pointsData={micro} pointLat="lat" pointLng="lng" pointColor={ptColor} pointAltitude={ptAlt} pointRadius={0.55}
+          pointLabel={ptLabel} onPointClick={ptClick}
         />
       ) : null}
     </div>
