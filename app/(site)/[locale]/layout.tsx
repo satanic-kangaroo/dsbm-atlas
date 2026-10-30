@@ -10,7 +10,7 @@ import Footer from "@/components/Footer";
 import { atlas } from "@/lib/data";
 import { countryNames } from "@/lib/names";
 import { countrySlug } from "@/lib/slug";
-
+import { Analytics } from '@vercel/analytics/next';
 const display = Instrument_Serif({ weight: "400", subsets: ["latin"], variable: "--font-display", display: "swap" });
 const body = IBM_Plex_Sans({ weight: ["400", "500", "600"], subsets: ["latin"], variable: "--font-body", display: "swap" });
 const mono = IBM_Plex_Mono({ weight: ["400", "500"], subsets: ["latin"], variable: "--font-mono", display: "swap" });
@@ -46,6 +46,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
           {children}
           <Footer locale={locale} />
         </div>
+        <Analytics /> 
       </body>
     </html>
   );
