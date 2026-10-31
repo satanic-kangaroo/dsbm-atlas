@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.1
+- Optional image proxy for visitors who cannot reach Metal Archives: Cloudflare Worker in `tools/image-proxy/` (allow-listed path and site, no edge cache) and `NEXT_PUBLIC_IMG_PROXY` env var. Without the variable images load directly as before; if an image fails the initial-letter tile is shown.
+
 ## 1.2.0
 - New Method page (EN/FA): the full analysis in pipeline order (definitions, country table, temperature tests with the 9-specification robustness grid, themes, survival, release formats, months and weekdays, data checks, limits, corrections) with the real numbers, table of contents and a download card. It covers the analysis only, not how the records were obtained.
 - Download: `public/downloads/dsbm-analysis-source.zip` (analysis scripts, aggregated results, figures; no band, release or album tables).

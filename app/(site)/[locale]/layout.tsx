@@ -46,7 +46,6 @@ export default async function LocaleLayout({ children, params }: { children: Rea
           {children}
           <Footer locale={locale} />
         </div>
-        <Analytics /> 
       </body>
     </html>
   );
