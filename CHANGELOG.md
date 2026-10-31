@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+- New Method page (EN/FA): the full analysis in pipeline order (definitions, country table, temperature tests with the 9-specification robustness grid, themes, survival, release formats, months and weekdays, data checks, limits, corrections) with the real numbers, table of contents and a download card. It covers the analysis only, not how the records were obtained.
+- Download: `public/downloads/dsbm-analysis-source.zip` (analysis scripts, aggregated results, figures; no band, release or album tables).
+- Numbers fixed: 91 countries (International and Unknown excluded), 10,786 unique releases (11,130 listings), 10,103 exact release dates.
+- Removed collection wording from the footer and old Method text.
+- Small phones: header no longer overflows horizontally.
+
 ## 1.1.1
 - Globe: memoised accessors (no polygon rebuild on every state change), 3D code loaded only when the atlas is near the viewport, drawing paused off-screen / in background tabs, capped pixel ratio, no transition, lower cap resolution; renders only once the box has a real size.
 - Globe errors are no longer swallowed: the tile map is shown with a visible reason (console + "info"), a retry button, and a "taking a while" hint after 7 s.
